@@ -1,4 +1,4 @@
-# src/game.py - Classe principal do jogo
+# src/game.py - Classe principal do jogo (atualizada para sprites)
 
 import pygame
 import random
@@ -16,6 +16,15 @@ class Game:
     def __init__(self, screen, host_player, num_players=2, ai_difficulty='MEDIO'):
         self.screen = screen
         self.clock = pygame.time.Clock()
+        
+        # Inicializa sprites se ainda não foram inicializados
+        try:
+            from src.sprite_loader import get_sprite_manager
+            self.sprite_manager = get_sprite_manager()
+            print("Sistema de sprites inicializado no jogo")
+        except Exception as e:
+            print(f"Aviso: Erro ao inicializar sprites: {e}")
+            self.sprite_manager = None
         
         # Configurações
         self.num_players = num_players

@@ -1,4 +1,4 @@
-# src/boat.py - Classe dos barcos
+# src/boat.py - Classe dos barcos com sprites
 
 import pygame
 import math
@@ -15,7 +15,7 @@ class Boat:
         self.color = color
         
         # Visual
-        self.size = 25
+        self.size = 40  # Tamanho para sprites
         self.sail_color = (255, 255, 255)  # Vela branca
         
         # Movimento
@@ -39,6 +39,84 @@ class Boat:
         # Rastro de movimento
         self.trail = []
         self.max_trail_length = 5
+        
+        # Sprite
+        self.sprite = None
+        self.load_sprite()
+        
+    def load_sprite(self):
+        """Carrega o sprite do barco"""
+        try:
+            from src.sprite_loader import get_sprite_manager
+            sprite_manager = get_sprite_manager()
+            
+            # Tenta obter sprite específico do jogador
+            self.sprite = sprite_manager.get_ship_sprite(self.player_id)
+            
+            # Se não encontrou, tenta sprites alternativos
+            if not self.sprite:
+                ship_names = [
+                    f'ship ({self.player_id + 1}).png',
+                    f'hullSmall ({self.player_id + 1}).png',
+                    'ship (1).png',
+                    'hullSmall (1).png'
+                ]
+                
+                for name in ship_names:
+                    self.sprite = sprite_manager.get_sprite(name, 'ships')
+                    if self.sprite:
+                        break
+                    
+                    # Tenta no sheet principal
+                    self.sprite = sprite_manager.get_sprite(name)
+                    if self.sprite:
+                        break
+            
+            # Se ainda não encontrou, cria fallback
+            if not self.sprite:
+                print(f"Sprite de barco não encontrado para jogador {self.player_id}, usando fallback")
+                self.sprite = self.create_fallback_sprite()
+                
+        except Exception as e:
+            print(f"Erro ao carregar sprite do barco: {e}")
+            self.sprite = self.create_fallback_sprite()
+    
+    def create_fallback_sprite(self):
+        """Cria um sprite simples como fallback"""
+        size = 48
+        surface = pygame.Surface((size, size), pygame.SRCALPHA)
+        
+        # Casco do barco
+        hull_points = [
+            (size//2 - 16, size//2 - 8),
+            (size//2 + 16, size//2 - 8),
+            (size//2 + 12, size//2 + 16),
+            (size//2 - 12, size//2 + 16)
+        ]
+        pygame.draw.polygon(surface, self.color, hull_points)
+        pygame.draw.polygon(surface, (0, 0, 0), hull_points, 2)
+        
+        # Vela
+        sail_points = [
+            (size//2, size//2 - 8),
+            (size//2, size//2 - 32),
+            (size//2 + 16, size//2 - 20)
+        ]
+        pygame.draw.polygon(surface, self.sail_color, sail_points)
+        pygame.draw.polygon(surface, (0, 0, 0), sail_points, 1)
+        
+        # Mastro
+        pygame.draw.line(surface, (139, 69, 19), 
+                        (size//2, size//2 - 8), 
+                        (size//2, size//2 - 35), 3)
+        
+        # Número do jogador
+        font = pygame.font.Font(None, 20)
+        text = font.render(str(self.player_id + 1), True, (255, 255, 255))
+        text_rect = text.get_rect(center=(size//2, size//2))
+        surface.blit(text, text_rect)
+        
+        return surface
         
     def set_position(self, x, y):
         """Define uma nova posição (sem animação)"""
@@ -82,7 +160,8 @@ class Boat:
     def collect_fish(self):
         """Coleta um peixe"""
         self.fish_collected += 1
-        self.moves_remaining = max(0, self.moves_remaining - 1)
+        if self.moves_remaining > 0:
+            self.moves_remaining = max(0, self.moves_remaining - 1)
         
     def reset_moves(self):
         """Reseta os movimentos para o próximo turno"""
@@ -118,12 +197,12 @@ class Boat:
             trail_screen_x, trail_screen_y = board_to_screen(trail_x, trail_y)
             
             # Cria uma superfície com transparência
-            trail_surface = pygame.Surface((10, 10))
+            trail_surface = pygame.Surface((12, 12), pygame.SRCALPHA)
             trail_surface.set_alpha(alpha // 2)
             trail_surface.fill((100, 150, 200))
             
             screen.blit(trail_surface, 
-                       (trail_screen_x - 5, trail_screen_y - 5))
+                       (trail_screen_x - 6, trail_screen_y - 6))
         
         # Posição na tela
         screen_x, screen_y = board_to_screen(self.visual_x, self.visual_y)
@@ -132,9 +211,40 @@ class Boat:
         wobble = math.sin(self.bob_offset) * 2
         screen_y += wobble
         
-        # Salva o estado atual
-        original_surface = screen.copy()
+        if self.sprite:
+            # Desenha usando sprite
+            sprite_rect = self.sprite.get_rect()
+            sprite_rect.center = (screen_x, screen_y)
+            
+            # Aplica rotação se estiver em movimento
+            if self.is_moving and abs(self.rotation) > 5:
+                rotated_sprite = pygame.transform.rotate(self.sprite, -self.rotation)
+                rotated_rect = rotated_sprite.get_rect(center=(screen_x, screen_y))
+                screen.blit(rotated_sprite, rotated_rect)
+            else:
+                screen.blit(self.sprite, sprite_rect)
+        else:
+            # Fallback para desenho manual
+            self.draw_manual(screen, screen_x, screen_y)
         
+        # Indicador de peixes coletados
+        if self.fish_collected > 0:
+            for i in range(min(self.fish_collected, 5)):  # Máximo 5 indicadores
+                fish_x = screen_x - 25 + i * 10
+                fish_y = screen_y + self.size // 2 + 15
+                pygame.draw.circle(screen, (255, 165, 0), (fish_x, fish_y), 4)
+                pygame.draw.circle(screen, COLORS['BLACK'], (fish_x, fish_y), 4, 1)
+            
+            # Se tem mais de 5, mostra o número
+            if self.fish_collected > 5:
+                font = pygame.font.Font(None, 16)
+                text = font.render(f"+{self.fish_collected - 5}", True, COLORS['WHITE'])
+                text_rect = text.get_rect()
+                text_rect.center = (screen_x + 25, screen_y + self.size // 2 + 15)
+                screen.blit(text, text_rect)
+    
+    def draw_manual(self, screen, screen_x, screen_y):
+        """Desenha o barco manualmente como fallback"""
         # Casco do barco
         hull_points = [
             (screen_x - self.size // 2, screen_y - self.size // 3),
@@ -176,18 +286,10 @@ class Boat:
         pygame.draw.line(screen, (139, 69, 19), mast_start, mast_end, 3)
         
         # Número do jogador
-        font = pygame.font.Font(None, 16)
-        text = font.render(str(self.player_id + 1), True, COLORS['BLACK'])
+        font = pygame.font.Font(None, 18)
+        text = font.render(str(self.player_id + 1), True, COLORS['WHITE'])
         text_rect = text.get_rect(center=(screen_x, screen_y))
         screen.blit(text, text_rect)
-        
-        # Indicador de peixes coletados
-        if self.fish_collected > 0:
-            for i in range(self.fish_collected):
-                fish_x = screen_x - 20 + i * 15
-                fish_y = screen_y + self.size // 2 + 10
-                pygame.draw.circle(screen, (255, 165, 0), (fish_x, fish_y), 5)
-                pygame.draw.circle(screen, COLORS['BLACK'], (fish_x, fish_y), 5, 1)
     
     def _rotate_point(self, point, center, angle):
         """Rotaciona um ponto ao redor de um centro"""

@@ -1,0 +1,221 @@
+{
+    "achievements": [
+        {
+            "id": "first_fish",
+            "name": "Primeiro Peixe",
+            "description": "Colete seu primeiro peixe",
+            "icon": "🐟",
+            "category": "Coleta",
+            "points": 10,
+            "conditions": {
+                "fish_collected": 1
+            }
+        },
+        {
+            "id": "fish_collector_10",
+            "name": "Pescador Iniciante",
+            "description": "Colete 10 peixes no total",
+            "icon": "🎣",
+            "category": "Coleta",
+            "points": 20,
+            "conditions": {
+                "fish_collected": 10
+            },
+            "max_progress": 10
+        },
+        {
+            "id": "fish_collector_50",
+            "name": "Pescador Experiente",
+            "description": "Colete 50 peixes no total",
+            "icon": "🐠",
+            "category": "Coleta",
+            "points": 50,
+            "conditions": {
+                "fish_collected": 50
+            },
+            "max_progress": 50
+        },
+        {
+            "id": "fish_collector_100",
+            "name": "Mestre Pescador",
+            "description": "Colete 100 peixes no total",
+            "icon": "🦈",
+            "category": "Coleta",
+            "points": 100,
+            "conditions": {
+                "fish_collected": 100
+            },
+            "max_progress": 100
+        },
+        {
+            "id": "first_win",
+            "name": "Primeira Vitória",
+            "description": "Vença sua primeira partida",
+            "icon": "🏆",
+            "category": "Vitória",
+            "points": 15,
+            "conditions": {
+                "games_won": 1
+            }
+        },
+        {
+            "id": "winner_10",
+            "name": "Vencedor",
+            "description": "Vença 10 partidas",
+            "icon": "🥇",
+            "category": "Vitória",
+            "points": 40,
+            "conditions": {
+                "games_won": 10
+            },
+            "max_progress": 10
+        },
+        {
+            "id": "perfect_game",
+            "name": "Jogo Perfeito",
+            "description": "Vença uma partida sem deixar oponentes coletarem peixes",
+            "icon": "💎",
+            "category": "Vitória",
+            "points": 50,
+            "conditions": {
+                "perfect_game": 1
+            }
+        },
+        {
+            "id": "win_streak_5",
+            "name": "Invencível",
+            "description": "Vença 5 partidas consecutivas",
+            "icon": "🔥",
+            "category": "Vitória",
+            "points": 60,
+            "conditions": {
+                "consecutive_wins": 5
+            },
+            "max_progress": 5
+        },
+        {
+            "id": "story_chapter_1",
+            "name": "Começo da Jornada",
+            "description": "Complete o Capítulo 1",
+            "icon": "📖",
+            "category": "História",
+            "points": 25,
+            "conditions": {
+                "story_chapter": 1
+            }
+        },
+        {
+            "id": "story_chapter_2",
+            "name": "Águas Profundas",
+            "description": "Complete o Capítulo 2",
+            "icon": "🌊",
+            "category": "História",
+            "points": 30,
+            "conditions": {
+                "story_chapter": 2
+            }
+        },
+        {
+            "id": "story_chapter_3",
+            "name": "Competidor",
+            "description": "Complete o Capítulo 3",
+            "icon": "⚓",
+            "category": "História",
+            "points": 40,
+            "conditions": {
+                "story_chapter": 3
+            }
+        },
+        {
+            "id": "story_complete",
+            "name": "Lenda dos Mares",
+            "description": "Complete todos os capítulos da história",
+            "icon": "👑",
+            "category": "História",
+            "points": 100,
+            "conditions": {
+                "story_chapter": 4
+            }
+        },
+        {
+            "id": "lucky_seven",
+            "name": "Número da Sorte",
+            "description": "Colete exatamente 7 peixes em uma partida",
+            "icon": "🍀",
+            "category": "Especial",
+            "points": 30,
+            "hidden": true
+        },
+        {
+            "id": "explorer",
+            "name": "Explorador",
+            "description": "Visite todos os cantos do tabuleiro em uma partida",
+            "icon": "🗺️",
+            "category": "Especial",
+            "points": 25,
+            "hidden": true
+        },
+        {
+            "id": "strategist",
+            "name": "Estrategista",
+            "description": "Vença usando apenas cartas de movimento zero",
+            "icon": "🧠",
+            "category": "Especial",
+            "points": 75,
+            "hidden": true
+        },
+        {
+            "id": "speedrun",
+            "name": "Velocista",
+            "description": "Vença uma partida em menos de 5 turnos",
+            "icon": "⚡",
+            "category": "Especial",
+            "points": 40,
+            "hidden": true
+        },
+        {
+            "id": "pacifist",
+            "name": "Pacifista",
+            "description": "Vença sem bloquear nenhum movimento de oponente",
+            "icon": "☮️",
+            "category": "Especial",
+            "points": 35,
+            "hidden": true
+        },
+        {
+            "id": "multiplayer_first",
+            "name": "Social",
+            "description": "Jogue sua primeira partida multiplayer",
+            "icon": "👥",
+            "category": "Multiplayer",
+            "points": 15,
+            "conditions": {
+                "multiplayer_games": 1
+            }
+        },
+        {
+            "id": "host_master",
+            "name": "Anfitrião",
+            "description": "Crie e hospede 10 salas multiplayer",
+            "icon": "🏠",
+            "category": "Multiplayer",
+            "points": 30,
+            "conditions": {
+                "hosted_games": 10
+            },
+            "max_progress": 10
+        },
+        {
+            "id": "friendly_rivalry",
+            "name": "Rivalidade Amigável",
+            "description": "Vença 20 partidas multiplayer",
+            "icon": "🤝",
+            "category": "Multiplayer",
+            "points": 50,
+            "conditions": {
+                "multiplayer_wins": 20
+            },
+            "max_progress": 20
+        }
+    ]
+}

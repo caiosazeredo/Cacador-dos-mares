@@ -1,0 +1,36 @@
+# Patch para corrigir problemas de interação das cartas
+# Adicione este código no início do método handle_event em src/game.py
+
+# Debug: imprime informações sobre eventos de mouse
+if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+    print(f"Clique detectado em: {event.pos}")
+    print(f"Fase atual: {self.phase}")
+    print(f"Jogador atual: {self.current_player_index}")
+    
+    current_player = self.players[self.current_player_index]
+    print(f"Jogador é IA: {current_player.is_ai}")
+    print(f"Cartas na mão: {len(current_player.hand.cards)}")
+
+# Se estiver na fase de jogar cartas e não for IA
+if self.phase == 'play_cards' and not current_player.is_ai:
+    # Debug: testa se as cartas têm posições válidas
+    for i, carta in enumerate(current_player.hand.cards):
+        print(f"Carta {i}: rect={carta.rect}, hover={carta.hover}")
+        
+    # Força atualização das posições das cartas antes do clique
+    mouse_pos = pygame.mouse.get_pos()
+    current_player.hand.update(mouse_pos)
+    
+    # Testa clique manualmente
+    for i, carta in enumerate(current_player.hand.cards):
+        if carta.rect.collidepoint(event.pos):
+            print(f"CLIQUE DETECTADO NA CARTA {i}!")
+            carta.selected = not carta.selected
+            
+            # Deseleciona outras cartas
+            for j, outra_carta in enumerate(current_player.hand.cards):
+                if i != j:
+                    outra_carta.selected = False
+            
+            current_player.hand.selected_card = carta if carta.selected else None
+            break

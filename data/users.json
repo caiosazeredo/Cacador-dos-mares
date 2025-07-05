@@ -1,0 +1,13 @@
+{
+    "caio": {
+        "password": "$2b$12$J/kvuZsQhLedLXaz6C04O.rQwYHg1Nw0QmaIYQfM5UpoBHxxsvKwi",
+        "created_at": 20685,
+        "achievements": [],
+        "stats": {
+            "games_played": 0,
+            "games_won": 0,
+            "fish_collected": 0,
+            "time_played": 0
+        }
+    }
+}

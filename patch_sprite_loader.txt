@@ -1,0 +1,26 @@
+# Patch para sprite_loader.py - adicione no início da classe SpriteManager
+
+def load_all_sprites(self):
+    """Carrega todos os spritesheets com debug"""
+    print("DEBUG: Iniciando carregamento de sprites...")
+    
+    # Carrega spritesheet principal
+    main_sheet_path = os.path.join(IMAGES_PATH, 'spritesheet.png')
+    main_xml_path = os.path.join(IMAGES_PATH, 'spritesheet.xml')
+    
+    print(f"DEBUG: Procurando sprites em {main_sheet_path}")
+    print(f"DEBUG: XML em {main_xml_path}")
+    
+    if os.path.exists(main_sheet_path) and os.path.exists(main_xml_path):
+        print("DEBUG: Arquivos principais encontrados")
+        self.sheets['main'] = SpriteSheet(main_sheet_path, main_xml_path)
+        if self.sheets['main'].image:
+            print(f"DEBUG: Spritesheet principal carregado: {len(self.sheets['main'].sprites)} sprites")
+            # Lista todos os sprites carregados
+            for nome in list(self.sheets['main'].sprites.keys())[:10]:
+                print(f"  - {nome}")
+        else:
+            print("DEBUG: ERRO - Spritesheet principal não carregou a imagem")
+    else:
+        print("DEBUG: Arquivos principais não encontrados, tentando na raiz...")
+        # resto do código...

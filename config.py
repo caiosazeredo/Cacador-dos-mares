@@ -49,7 +49,7 @@ DEFAULT_PORT = 5555
 TIMEOUT = 30
 
 # Caminhos
-BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 ASSETS_PATH = os.path.join(BASE_PATH, 'assets')
 IMAGES_PATH = os.path.join(ASSETS_PATH, 'images')
 SOUNDS_PATH = os.path.join(ASSETS_PATH, 'sounds')

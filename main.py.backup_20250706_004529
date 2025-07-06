@@ -1,0 +1,211 @@
+# main.py - Sistema completo melhorado do Caçador dos Mares
+
+import pygame
+import sys
+import os
+
+# Adiciona o diretório src ao path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from config import *
+from src.menu import MainMenu
+from src.login import LoginScreen
+from src.utils import create_directories
+from src.sprite_loader import init_sprites
+from src.settings_manager import settings_manager
+from src.responsive_window import responsive_window
+from src.card_renderer import card_renderer
+from src.game_phases import game_phase_manager
+
+def detect_steam_user():
+    """Detecta usuário do Steam"""
+    return settings_manager.steam_username
+
+def main():
+    """Função principal com sistema completo melhorado"""
+    
+    print("🚀 Iniciando Caçador dos Mares - Versão Melhorada")
+    print("=" * 60)
+    
+    # Cria diretórios necessários
+    create_directories()
+    
+    # Inicializa Pygame
+    pygame.init()
+    pygame.mixer.init()
+    
+    # Configura janela responsiva
+    flags = pygame.RESIZABLE | pygame.DOUBLEBUF
+    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), flags)
+    pygame.display.set_caption(TITLE)
+    
+    # Configura tamanho mínimo
+    responsive_window.set_minimum_size(1000, 700)
+    
+    # Inicializa sistema de sprites
+    print("📦 Carregando recursos...")
+    try:
+        sprite_manager = init_sprites()
+        print("✓ Sprites carregados")
+    except Exception as e:
+        print(f"⚠ Aviso sprites: {e}")
+    
+    # Clock para controlar FPS
+    clock = pygame.time.Clock()
+    
+    # Estado do jogo
+    if settings_manager.auto_login:
+        username = detect_steam_user()
+        print(f"🔑 Login automático: {username}")
+        game_state = {
+            'logged_in': True,
+            'username': username,
+            'current_screen': 'menu'
+        }
+        main_menu = MainMenu(screen, username)
+        login_screen = None
+    else:
+        print("🔑 Tela de login")
+        game_state = {
+            'logged_in': False,
+            'username': None,
+            'current_screen': 'login'
+        }
+        login_screen = LoginScreen(screen)
+        main_menu = None
+    
+    print("✓ Sistema inicializado")
+    print()
+    print("🎮 CONTROLES MELHORADOS:")
+    print("  F11 / Alt+Enter - Tela cheia")
+    print("  ESC - Menu de pausa")
+    print("  Arrastar bordas - Redimensionar")
+    print("  Clique nas cartas - Seleção melhorada")
+    print("  Mouse hover - Destaque das cartas")
+    print()
+    
+    # Loop principal melhorado
+    running = True
+    while running:
+        dt = clock.tick(FPS) / 1000.0
+        
+        # Atualiza sistemas
+        card_renderer.update(dt)
+        game_phase_manager.update(dt)
+        
+        # Eventos
+        events = pygame.event.get()
+        for event in events:
+            if event.type == pygame.QUIT:
+                running = False
+            
+            # Sistema de redimensionamento
+            resize_result = responsive_window.handle_event(event, screen)
+            if resize_result:
+                screen = resize_result
+                # Atualiza telas com novo tamanho
+                if login_screen:
+                    login_screen.screen = screen
+                if main_menu:
+                    main_menu.screen = screen
+            
+            # Atalhos globais melhorados
+            if event.type == pygame.KEYDOWN:
+                # Tela cheia
+                if (event.key == pygame.K_F11 or 
+                    (event.key == pygame.K_RETURN and event.mod & pygame.KMOD_ALT)):
+                    screen = settings_manager.toggle_fullscreen()
+                    if login_screen:
+                        login_screen.screen = screen
+                    if main_menu:
+                        main_menu.screen = screen
+                
+                # Sair rápido
+                elif event.key == pygame.K_q and event.mod & pygame.KMOD_CTRL:
+                    running = False
+                
+                # Debug - simular mudança de fase
+                elif event.key == pygame.K_F1:
+                    game_phase_manager.next_phase()
+                
+                # Debug - adicionar notificação
+                elif event.key == pygame.K_F2:
+                    game_phase_manager.add_notification("Teste de notificação!")
+            
+            # Processa eventos das telas
+            if game_state['current_screen'] == 'login' and login_screen:
+                result = login_screen.handle_event(event)
+                if result:
+                    print(f"✓ Login: {result}")
+                    game_state['logged_in'] = True
+                    game_state['username'] = result
+                    game_state['current_screen'] = 'menu'
+                    main_menu = MainMenu(screen, result)
+                    login_screen = None
+            
+            elif game_state['current_screen'] == 'menu' and main_menu:
+                try:
+                    action = main_menu.handle_event(event)
+                    if action == 'quit':
+                        running = False
+                    elif action == 'logout':
+                        print("🔑 Logout")
+                        game_state['logged_in'] = False
+                        game_state['username'] = None
+                        game_state['current_screen'] = 'login'
+                        main_menu = None
+                        login_screen = LoginScreen(screen)
+                    elif isinstance(action, tuple) and action[0] == 'screen_changed':
+                        screen = action[1]
+                        main_menu.screen = screen
+                except Exception as e:
+                    print(f"⚠ Erro no menu: {e}")
+                    game_state['current_screen'] = 'login'
+                    main_menu = None
+                    login_screen = LoginScreen(screen)
+        
+        # Renderização melhorada
+        try:
+            # Limpa tela com gradiente
+            screen.fill(COLORS['BACKGROUND'])
+            
+            # Renderiza tela atual
+            if game_state['current_screen'] == 'login' and login_screen:
+                login_screen.update(dt)
+                login_screen.draw()
+            elif game_state['current_screen'] == 'menu' and main_menu:
+                main_menu.update(dt)
+                main_menu.draw()
+            
+            # Sistemas de UI globais
+            game_phase_manager.draw_notifications(screen)
+            responsive_window.draw_resize_indicators(screen)
+            
+            # Debug info (removível)
+            if pygame.key.get_pressed()[pygame.K_F12]:
+                from src.utils import draw_text
+                debug_info = [
+                    f"FPS: {int(clock.get_fps())}",
+                    f"Resolução: {screen.get_size()}",
+                    f"Fase: {game_phase_manager.current_phase}",
+                    f"Cartas em cache: {len(card_renderer.card_cache)}"
+                ]
+                
+                for i, info in enumerate(debug_info):
+                    draw_text(screen, info, 10, 10 + i * 20, size=16, color=COLORS['WHITE'])
+        
+        except Exception as e:
+            print(f"⚠ Erro de renderização: {e}")
+            screen.fill((20, 20, 40))
+        
+        # Atualiza tela
+        pygame.display.flip()
+    
+    # Salva configurações e encerra
+    settings_manager.save_settings()
+    print("👋 Encerrando Caçador dos Mares...")
+    pygame.quit()
+    sys.exit()
+
+if __name__ == "__main__":
+    main()

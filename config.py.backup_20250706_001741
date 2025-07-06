@@ -1,29 +1,22 @@
-# config.py - Configurações responsivas (ATUALIZADO)
-
 import os
 
-# Configurações da janela - SISTEMA RESPONSIVO
-WINDOW_WIDTH = 1600   # Resolução padrão
-WINDOW_HEIGHT = 900   # Resolução padrão
+# Configurações da janela
+WINDOW_WIDTH = 1600  # Aumentado para acomodar tiles maiores
+WINDOW_HEIGHT = 900  # Aumentado para acomodar tiles maiores
 FPS = 60
 TITLE = "Caçador dos Mares"
 
-# Configurações do tabuleiro - RESPONSIVO
+# Configurações do tabuleiro - AJUSTADO PARA TILES 64x64
 BOARD_SIZE = 20
-CELL_SIZE = 64        # Tamanho base das células
-BOARD_OFFSET_X = 80   # Offset base
-BOARD_OFFSET_Y = 80   # Offset base
+CELL_SIZE = 64  # Atualizado de 30 para 64 para coincidir com tiles
+BOARD_OFFSET_X = 80  # Ajustado para centralizar melhor
+BOARD_OFFSET_Y = 80  # Ajustado para centralizar melhor
 
 # Configurações de tiles
 TILE_SIZE = 64
-WATER_TILE = "tile_73.png"
+WATER_TILE = "tile_73.png"  # Tile específico para água
 
-# Sistema de escala automática
-AUTO_SCALE_UI = True
-MIN_SCALE_FACTOR = 0.5
-MAX_SCALE_FACTOR = 2.0
-
-# Cores
+# Cores (mantidas as mesmas)
 COLORS = {
     'BACKGROUND': (24, 93, 123),
     'BOARD': (64, 164, 223),
@@ -45,7 +38,7 @@ COLORS = {
     ]
 }
 
-# Configurações do jogo
+# Configurações do jogo (mantidas as mesmas)
 MAX_PLAYERS = 4
 MIN_PLAYERS = 2
 INITIAL_FISH_PER_PLAYER = 1
@@ -68,7 +61,7 @@ FONTS_PATH = os.path.join(ASSETS_PATH, 'fonts')
 DATA_PATH = os.path.join(BASE_PATH, 'data')
 SAVES_PATH = os.path.join(DATA_PATH, 'saves')
 
-# Configurações de IA
+# Configurações de IA (mantidas as mesmas)
 AI_DIFFICULTIES = {
     'FACIL': {
         'name': 'Fácil',
@@ -90,7 +83,7 @@ AI_DIFFICULTIES = {
     }
 }
 
-# Cartas de movimento (vetores)
+# Cartas de movimento (mantidas as mesmas)
 MOVEMENT_CARDS = [
     (0, 0),    # Sem movimento
     (1, 0),    # Direita
@@ -111,13 +104,5 @@ MOVEMENT_CARDS = [
     (-1, -2)   # Esquerda + cima forte
 ]
 
-# Configurações do Steam/Login automático
-STEAM_APP_ID = None
-AUTO_LOGIN_DEFAULT = True
-DEFAULT_USERNAME = "Jogador"
-
-# Teclas de atalho
-FULLSCREEN_KEYS = ['F11', 'Alt+Enter']
-PAUSE_KEY = 'ESC'
-QUICK_EXIT = 'Ctrl+Q'
-TOGGLE_AUTO_LOGIN = 'Ctrl+L'
+# Configurações do Steam
+STEAM_APP_ID = None  # Será definido quando registrado na Steam

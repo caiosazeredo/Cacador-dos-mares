@@ -1,27 +1,22 @@
-# config.py - Configurações responsivas (ATUALIZADO)
+# config.py - Configurações globais do jogo (ATUALIZADO)
 
 import os
 
-# Configurações da janela - SISTEMA RESPONSIVO
-WINDOW_WIDTH = 1600   # Resolução padrão
-WINDOW_HEIGHT = 900   # Resolução padrão
+# Configurações da janela - AJUSTADO PARA TILES 64x64
+WINDOW_WIDTH = 1600  # Aumentado para acomodar tiles maiores
+WINDOW_HEIGHT = 900  # Aumentado para acomodar tiles maiores
 FPS = 60
 TITLE = "Caçador dos Mares"
 
-# Configurações do tabuleiro - RESPONSIVO
+# Configurações do tabuleiro - AJUSTADO PARA TILES 64x64
 BOARD_SIZE = 20
-CELL_SIZE = 64        # Tamanho base das células
-BOARD_OFFSET_X = 80   # Offset base
-BOARD_OFFSET_Y = 80   # Offset base
+CELL_SIZE = 64  # Atualizado de 30 para 64 para coincidir com tiles
+BOARD_OFFSET_X = 80  # Ajustado para centralizar melhor
+BOARD_OFFSET_Y = 80  # Ajustado para centralizar melhor
 
 # Configurações de tiles
 TILE_SIZE = 64
-WATER_TILE = "tile_73.png"
-
-# Sistema de escala automática
-AUTO_SCALE_UI = True
-MIN_SCALE_FACTOR = 0.5
-MAX_SCALE_FACTOR = 2.0
+WATER_TILE = "tile_73.png"  # Tile específico para água
 
 # Cores
 COLORS = {
@@ -111,13 +106,5 @@ MOVEMENT_CARDS = [
     (-1, -2)   # Esquerda + cima forte
 ]
 
-# Configurações do Steam/Login automático
-STEAM_APP_ID = None
-AUTO_LOGIN_DEFAULT = True
-DEFAULT_USERNAME = "Jogador"
-
-# Teclas de atalho
-FULLSCREEN_KEYS = ['F11', 'Alt+Enter']
-PAUSE_KEY = 'ESC'
-QUICK_EXIT = 'Ctrl+Q'
-TOGGLE_AUTO_LOGIN = 'Ctrl+L'
+# Configurações do Steam
+STEAM_APP_ID = None  # Será definido quando registrado na Steam

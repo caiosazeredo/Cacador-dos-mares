@@ -1,0 +1,181 @@
+# main.py - Sistema responsivo com tela cheia e login direto
+
+import pygame
+import sys
+import os
+
+# Adiciona o diretório src ao path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from config import *
+from src.menu import MainMenu
+from src.login import LoginScreen
+from src.utils import create_directories
+from src.sprite_loader import init_sprites
+from src.settings_manager import settings_manager
+
+def detect_steam_user():
+    """Detecta usuário do Steam (simulação)"""
+    # Em produção, isso usaria a Steam API
+    # Por enquanto, retorna um usuário padrão
+    return settings_manager.steam_username
+
+def main():
+    """Função principal com sistema responsivo"""
+    
+    print("🚀 Iniciando Caçador dos Mares...")
+    
+    # Cria diretórios necessários
+    create_directories()
+    
+    # Inicializa Pygame
+    pygame.init()
+    pygame.mixer.init()
+    
+    # Aplica configurações de vídeo
+    screen = settings_manager.apply_resolution()
+    pygame.display.set_caption(TITLE)
+    
+    # Inicializa sistema de sprites
+    print("📦 Carregando sprites...")
+    try:
+        sprite_manager = init_sprites()
+        print("✓ Sprites carregados com sucesso")
+    except Exception as e:
+        print(f"⚠ Aviso: Erro ao carregar sprites: {e}")
+    
+    # Clock para controlar FPS
+    clock = pygame.time.Clock()
+    
+    # Determina se deve fazer login automático
+    if settings_manager.auto_login:
+        username = detect_steam_user()
+        print(f"🔑 Login automático: {username}")
+        game_state = {
+            'logged_in': True,
+            'username': username,
+            'current_screen': 'menu'
+        }
+        main_menu = MainMenu(screen, username)
+        login_screen = None
+    else:
+        print("🔑 Tela de login ativada")
+        game_state = {
+            'logged_in': False,
+            'username': None,
+            'current_screen': 'login'
+        }
+        login_screen = LoginScreen(screen)
+        main_menu = None
+    
+    print("✓ Sistema inicializado")
+    print("🎮 Controles:")
+    print("  F11 / Alt+Enter - Alternar tela cheia")
+    print("  ESC - Menu de pausa (durante o jogo)")
+    print("  Ctrl+Q - Sair rápido")
+    
+    # Loop principal
+    running = True
+    while running:
+        dt = clock.tick(FPS) / 1000.0
+        
+        # Eventos
+        events = pygame.event.get()
+        for event in events:
+            if event.type == pygame.QUIT:
+                running = False
+            
+            # Atalhos globais
+            if event.type == pygame.KEYDOWN:
+                # Tela cheia
+                if (event.key == pygame.K_F11 or 
+                    (event.key == pygame.K_RETURN and event.mod & pygame.KMOD_ALT)):
+                    screen = settings_manager.toggle_fullscreen()
+                    if login_screen:
+                        login_screen.screen = screen
+                    if main_menu:
+                        main_menu.screen = screen
+                
+                # Sair rápido
+                elif event.key == pygame.K_q and event.mod & pygame.KMOD_CTRL:
+                    running = False
+                
+                # Toggle login automático
+                elif event.key == pygame.K_l and event.mod & pygame.KMOD_CTRL:
+                    settings_manager.auto_login = not settings_manager.auto_login
+                    settings_manager.save_settings()
+                    status = "ativado" if settings_manager.auto_login else "desativado"
+                    print(f"Login automático {status}")
+            
+            # Processa eventos da tela atual
+            if game_state['current_screen'] == 'login' and login_screen:
+                result = login_screen.handle_event(event)
+                if result:
+                    # Login bem-sucedido
+                    print(f"✓ Login realizado: {result}")
+                    game_state['logged_in'] = True
+                    game_state['username'] = result
+                    game_state['current_screen'] = 'menu'
+                    main_menu = MainMenu(screen, result)
+                    login_screen = None
+                    print("✓ Menu principal carregado")
+            
+            elif game_state['current_screen'] == 'menu' and main_menu:
+                try:
+                    action = main_menu.handle_event(event)
+                    if action == 'quit':
+                        running = False
+                    elif action == 'logout':
+                        print("🔑 Fazendo logout...")
+                        game_state['logged_in'] = False
+                        game_state['username'] = None
+                        game_state['current_screen'] = 'login'
+                        main_menu = None
+                        login_screen = LoginScreen(screen)
+                    elif isinstance(action, tuple) and action[0] == 'screen_changed':
+                        screen = action[1]
+                        main_menu.screen = screen
+                except Exception as e:
+                    print(f"⚠ Erro no menu: {e}")
+                    # Em caso de erro, volta para o login
+                    game_state['current_screen'] = 'login'
+                    main_menu = None
+                    login_screen = LoginScreen(screen)
+        
+        # Atualiza a tela atual
+        try:
+            screen.fill(COLORS['BACKGROUND'])
+            
+            if game_state['current_screen'] == 'login' and login_screen:
+                login_screen.update(dt)
+                login_screen.draw()
+            elif game_state['current_screen'] == 'menu' and main_menu:
+                main_menu.update(dt)
+                main_menu.draw()
+            else:
+                # Estado inválido, mostra mensagem de erro
+                from src.utils import draw_text
+                draw_text(screen, "Erro: Estado inválido do jogo", 
+                         screen.get_width() // 2, screen.get_height() // 2,
+                         size=32, color=COLORS['RED'], center=True)
+                draw_text(screen, "Pressione qualquer tecla para continuar", 
+                         screen.get_width() // 2, screen.get_height() // 2 + 50,
+                         size=20, color=COLORS['WHITE'], center=True)
+        except Exception as e:
+            print(f"⚠ Erro durante renderização: {e}")
+            # Fallback simples
+            screen.fill((20, 20, 40))
+        
+        # Atualiza a tela
+        pygame.display.flip()
+    
+    # Salva configurações antes de sair
+    settings_manager.save_settings()
+    
+    # Encerra o jogo
+    print("👋 Encerrando Caçador dos Mares...")
+    pygame.quit()
+    sys.exit()
+
+if __name__ == "__main__":
+    main()

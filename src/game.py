@@ -1,23 +1,25 @@
-# src/game.py - Classe principal do jogo (atualizada para sprites)
+# src/game.py - Jogo com UI responsiva completa
 
 import pygame
 import random
 from config import *
 from src.board import Board
 from src.player import Player
-from src.fish import Fish
+from src.fish import Fish, fish_manager
 from src.card import CardDeck
+from src.card_system import CardHand, VisualCard
 from src.ai import AIController
+from src.layout_manager import layout_manager
 from src.utils import *
 
 class Game:
-    """Classe principal que gerencia o jogo"""
+    """Classe principal do jogo com UI responsiva"""
     
     def __init__(self, screen, host_player, num_players=2, ai_difficulty='MEDIO'):
         self.screen = screen
         self.clock = pygame.time.Clock()
         
-        # Inicializa sprites se ainda não foram inicializados
+        # Inicializa sprites
         try:
             from src.sprite_loader import get_sprite_manager
             self.sprite_manager = get_sprite_manager()
@@ -30,579 +32,469 @@ class Game:
         self.num_players = num_players
         self.ai_difficulty = ai_difficulty
         
-        # Componentes do jogo
+        # Componentes do jogo responsivos
         self.board = Board()
         self.players = []
-        self.fish_list = []
         self.deck = CardDeck()
         
         # Estado do jogo
         self.current_player_index = 0
         self.turn_number = 1
-        self.phase = 'setup'  # setup, play_cards, movement, resolution, game_over
+        self.phase = 'setup'
         self.winner = None
         
         # Controle de turnos
-        self.start_player_token = 0  # Índice do jogador que começa
-        self.cards_played = {}  # Cartas jogadas no turno
-        self.fish_to_add = 0  # Peixes para adicionar no próximo turno
+        self.start_player_token = 0
+        self.cards_played = {}
+        self.fish_to_add = 0
         
-        # UI
+        # UI responsiva
         self.ui_message = ""
         self.ui_message_timer = 0
+        self.card_hands = {}  # Mãos visuais dos jogadores
+        self.selected_card_index = -1
         
         # Animações
         self.animations = []
+        self.ui_scale = 1.0
         
-        # Inicializa jogadores
+        # Inicializa jogadores e UI
         self.setup_players(host_player)
-        
-        # Inicializa o jogo
+        self.setup_responsive_ui()
         self.setup_game()
-        
+    
+    def setup_responsive_ui(self):
+        """Configura UI responsiva"""
+        # Cria mãos de cartas visuais para cada jogador
+        for i, player in enumerate(self.players):
+            hand = CardHand()
+            # Adiciona cartas de exemplo (serão substituídas pelo deck real)
+            example_vectors = [(1, 0), (0, 1), (-1, 0)]
+            for vector in example_vectors:
+                hand.add_card(vector)
+            self.card_hands[i] = hand
+    
     def setup_players(self, host_player):
         """Configura os jogadores"""
-        # Jogador principal (humano)
+        # Jogador principal
         player = Player(0, host_player, COLORS['PLAYER_COLORS'][0], is_ai=False)
         self.players.append(player)
         
         # Jogadores IA
         for i in range(1, self.num_players):
-            ai_player = Player(i, f"CPU {i}", COLORS['PLAYER_COLORS'][i], 
-                             is_ai=True, ai_difficulty=self.ai_difficulty)
-            ai_player.ai_controller = AIController(ai_player, self.ai_difficulty)
-            self.players.append(ai_player)
+            ai_name = f"IA {i}"
+            player = Player(i, ai_name, COLORS['PLAYER_COLORS'][i], is_ai=True)
+            player.ai_controller = AIController(player, self.ai_difficulty)
+            self.players.append(player)
     
     def setup_game(self):
-        """Configura o estado inicial do jogo"""
-        # Distribui cartas iniciais
-        for player in self.players:
-            for _ in range(3):
-                card = self.deck.draw_card()
-                player.hand.add_card(card)
-        
+        """Inicializa o jogo"""
         # Adiciona peixes iniciais
-        num_initial_fish = len(self.players)
-        occupied_positions = set()
+        occupied = []
         
-        for _ in range(num_initial_fish):
-            pos = generate_random_position(occupied_positions)
+        for _ in range(self.num_players):
+            pos = generate_random_position(occupied)
             if pos:
-                x, y = pos
-                fish = Fish(x, y)
-                self.fish_list.append(fish)
-                self.board.place_object(x, y, fish)
-                occupied_positions.add(pos)
+                fish_manager.add_fish(pos[0], pos[1])
+                occupied.append(pos)
         
-        self.phase = 'placement'
-        self.show_message(f"Fase de Posicionamento - Jogador {self.current_player_index + 1}, escolha onde colocar seu barco")
+        self.phase = 'setup'
+        self.show_message("Posicione seus barcos no tabuleiro")
+    
+    def update_screen_size(self, width, height):
+        """Atualiza tamanho da tela para responsividade"""
+        layout_manager.update_screen_size(width, height)
+        self.board.update_screen_size(width, height)
+        
+        # Atualiza escala da UI
+        self.ui_scale = layout_manager.get_element_scale_factor()
+    
+    def get_ui_areas(self):
+        """Retorna áreas da UI responsiva"""
+        screen_width, screen_height = self.screen.get_size()
+        layout_manager.update_screen_size(screen_width, screen_height)
+        
+        ui_area = layout_manager.get_ui_area()
+        board_area = layout_manager.get_board_area()
+        
+        # Área de informações do jogo (parte superior da UI)
+        info_area = {
+            'x': ui_area['x'],
+            'y': ui_area['y'],
+            'width': ui_area['width'],
+            'height': ui_area['height'] // 2
+        }
+        
+        # Área de cartas (parte inferior)
+        card_area = {
+            'x': board_area['x'],
+            'y': board_area['y'] + board_area['height'] + 20,
+            'width': board_area['width'],
+            'height': screen_height - (board_area['y'] + board_area['height'] + 40)
+        }
+        
+        return {
+            'board': board_area,
+            'ui': ui_area,
+            'info': info_area,
+            'cards': card_area
+        }
     
     def handle_event(self, event):
         """Processa eventos do jogo"""
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
-                return 'quit'
+        if event.type == pygame.VIDEORESIZE:
+            self.update_screen_size(event.w, event.h)
+            return None
         
+        areas = self.get_ui_areas()
         current_player = self.players[self.current_player_index]
         
-        # Fase de posicionamento inicial
-        if self.phase == 'placement':
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if not current_player.is_ai:
-                    pos = screen_to_board(event.pos[0], event.pos[1])
-                    if pos and not self.board.is_occupied(pos[0], pos[1]):
-                        self.place_player_boat(current_player, pos[0], pos[1])
-                        self.next_placement()
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mouse_pos = event.pos
+            
+            # Verifica clique no tabuleiro
+            board_pos = self.board.screen_to_board(mouse_pos[0], mouse_pos[1])
+            if board_pos:
+                return self.handle_board_click(board_pos[0], board_pos[1])
+            
+            # Verifica clique nas cartas
+            if self.phase == 'play_cards' and not current_player.is_ai:
+                return self.handle_card_click(mouse_pos)
         
-        # Fase de jogar cartas
-        elif self.phase == 'play_cards':
-            if not current_player.is_ai:
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    # Clique nas cartas
-                    current_player.hand.handle_click(event.pos)
-                
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_RETURN:
-                        # Confirma carta selecionada
-                        card = current_player.hand.get_selected_card()
-                        if card:
-                            self.play_card(current_player, card)
-                            self.next_card_player()
-        
-        # Fase de movimento
-        elif self.phase == 'movement':
-            if not current_player.is_ai and not current_player.has_moved:
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    pos = screen_to_board(event.pos[0], event.pos[1])
-                    if pos and pos in self.board.highlight_cells:
-                        self.move_player_boat(current_player, pos[0], pos[1])
-                
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
-                        # Pula movimento
-                        current_player.has_moved = True
-                        self.next_movement_player()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                return 'pause'
+            elif event.key == pygame.K_SPACE and self.phase == 'movement':
+                # Pula movimento
+                if not current_player.is_ai and not current_player.has_moved:
+                    current_player.has_moved = True
+                    self.next_movement_player()
         
         return None
     
+    def handle_board_click(self, x, y):
+        """Processa clique no tabuleiro"""
+        current_player = self.players[self.current_player_index]
+        
+        if self.phase == 'setup' and not current_player.boat:
+            # Posiciona barco
+            if not self.board.is_occupied(x, y):
+                self.place_player_boat(current_player, x, y)
+                self.next_setup_player()
+        
+        elif self.phase == 'movement' and not current_player.is_ai:
+            # Move barco
+            if not current_player.has_moved and current_player.boat:
+                boat_pos = current_player.boat.get_position()
+                if (x, y) in self.board.highlight_cells:
+                    self.move_player_boat(current_player, x, y)
+        
+        return None
+    
+    def handle_card_click(self, mouse_pos):
+        """Processa clique nas cartas"""
+        current_player = self.players[self.current_player_index]
+        
+        if current_player.is_ai or current_player.has_played_card:
+            return None
+        
+        # Verifica clique na mão do jogador atual
+        hand = self.card_hands.get(self.current_player_index)
+        if hand:
+            clicked_index = hand.handle_click(mouse_pos)
+            if clicked_index >= 0:
+                selected_card = hand.get_selected_card()
+                if selected_card:
+                    # Confirma jogada da carta
+                    # TODO: Implementar confirmação
+                    pass
+        
+        return None
+    
+    def next_setup_player(self):
+        """Próximo jogador no setup"""
+        self.current_player_index = (self.current_player_index + 1) % len(self.players)
+        
+        # Verifica se todos posicionaram
+        if all(p.boat for p in self.players):
+            self.start_turn()
+    
     def place_player_boat(self, player, x, y):
-        """Posiciona o barco de um jogador"""
+        """Posiciona barco do jogador"""
         player.create_boat(x, y)
         self.board.place_object(x, y, player.boat)
-        self.show_message(f"Barco do Jogador {player.id + 1} posicionado em ({x}, {y})")
-    
-    def play_card(self, player, card):
-        """Jogador joga uma carta"""
-        if player.play_card(card):
-            self.cards_played[player.id] = card
-            self.show_message(f"Jogador {player.id + 1} jogou uma carta")
-            return True
-        return False
+        self.show_message(f"Barco do {player.name} posicionado!")
     
     def move_player_boat(self, player, x, y):
-        """Move o barco de um jogador"""
-        old_x, old_y = player.boat.get_position()
+        """Move barco do jogador"""
+        old_pos = player.boat.get_position()
         
         if player.move_boat(x, y):
-            # Atualiza o tabuleiro
-            self.board.move_object(old_x, old_y, x, y)
+            self.board.move_object(old_pos[0], old_pos[1], x, y)
             self.board.clear_highlights()
-            
-            self.show_message(f"Jogador {player.id + 1} moveu para ({x}, {y})")
-            
-            # Verifica próximo jogador
             self.next_movement_player()
     
-    def next_placement(self):
-        """Avança para o próximo jogador na fase de posicionamento"""
-        self.current_player_index += 1
-        
-        if self.current_player_index >= len(self.players):
-            # Todos posicionaram - inicia o jogo
-            self.current_player_index = self.start_player_token
-            self.phase = 'preparation'
-            self.start_turn()
-        else:
-            # Próximo jogador posiciona
-            current_player = self.players[self.current_player_index]
-            
-            if current_player.is_ai:
-                # IA escolhe posição
-                occupied = self.board.get_all_occupied_positions()
-                pos = generate_random_position(set(occupied))
-                if pos:
-                    self.place_player_boat(current_player, pos[0], pos[1])
-                    self.next_placement()
-            else:
-                self.show_message(f"Jogador {self.current_player_index + 1}, escolha onde colocar seu barco")
-    
     def start_turn(self):
-        """Inicia um novo turno"""
-        self.show_message(f"Turno {self.turn_number} - Fase de Preparação")
-        
-        # Adiciona peixes
-        num_fish_to_add = self.fish_to_add + 1
-        occupied_positions = set(self.board.get_all_occupied_positions())
-        
-        for _ in range(num_fish_to_add):
-            pos = generate_random_position(occupied_positions)
-            if pos:
-                x, y = pos
-                fish = Fish(x, y)
-                self.fish_list.append(fish)
-                self.board.place_object(x, y, fish)
-                occupied_positions.add(pos)
-        
-        self.fish_to_add = 0
+        """Inicia novo turno"""
+        self.phase = 'preparation'
         
         # Distribui cartas
         for player in self.players:
             while len(player.hand.cards) < 3:
                 card = self.deck.draw_card()
-                player.hand.add_card(card)
+                if card:
+                    player.hand.add_card(card)
         
-        # Inicia fase de jogar cartas
+        # Atualiza mãos visuais
+        self.update_visual_hands()
+        
         self.phase = 'play_cards'
         self.current_player_index = self.start_player_token
-        self.cards_played = {}
-        
-        # Reseta IA
-        for player in self.players:
-            if player.is_ai:
-                player.ai_controller.reset_phase('play_cards')
-        
-        self.show_message(f"Fase de Cartas - Todos jogam uma carta (virada para baixo)")
+        self.show_message("Escolha uma carta para jogar")
     
-    def next_card_player(self):
-        """Avança para o próximo jogador na fase de cartas"""
-        self.current_player_index = (self.current_player_index + 1) % len(self.players)
-        
-        # Verifica se todos jogaram
-        if len(self.cards_played) == len(self.players):
-            self.phase = 'movement'
-            self.current_player_index = self.start_player_token
-            self.show_highlights_for_current_player()
-            
-            # Reseta IA
-            for player in self.players:
-                if player.is_ai:
-                    player.ai_controller.reset_phase('movement')
-            
-            self.show_message("Fase de Movimento - Mova seu barco")
-    
-    def show_highlights_for_current_player(self):
-        """Mostra movimentos válidos para o jogador atual"""
-        player = self.players[self.current_player_index]
-        if player.boat and not player.has_moved:
-            boat_x, boat_y = player.boat.get_position()
-            valid_moves = self.board.get_valid_moves(boat_x, boat_y, player.boat.moves_remaining)
-            self.board.highlight_moves(valid_moves)
+    def update_visual_hands(self):
+        """Atualiza mãos visuais com cartas reais"""
+        for i, player in enumerate(self.players):
+            if i in self.card_hands:
+                hand = self.card_hands[i]
+                hand.cards.clear()
+                
+                # Adiciona cartas do deck real
+                for card in player.hand.cards:
+                    hand.add_card(card.get_vector())
     
     def next_movement_player(self):
-        """Avança para o próximo jogador na fase de movimento"""
+        """Próximo jogador no movimento"""
         self.current_player_index = (self.current_player_index + 1) % len(self.players)
         
         # Verifica se todos moveram
-        all_moved = all(p.has_moved for p in self.players)
-        
-        if all_moved:
-            self.phase = 'resolution'
+        if all(p.has_moved for p in self.players):
             self.resolve_turn()
         else:
-            # Mostra opções para o próximo jogador
+            # Destaca movimentos do próximo jogador
             self.show_highlights_for_current_player()
     
+    def show_highlights_for_current_player(self):
+        """Mostra movimentos válidos"""
+        player = self.players[self.current_player_index]
+        if player.boat and not player.has_moved:
+            pos = player.boat.get_position()
+            valid_moves = self.board.get_valid_moves(pos[0], pos[1], player.boat.moves_remaining)
+            self.board.highlight_moves(valid_moves)
+    
     def resolve_turn(self):
-        """Resolve o turno - move peixes e coleta"""
-        self.show_message("Fase de Resolução")
-        
-        # Calcula vetor resultante das cartas
+        """Resolve turno"""
+        # Calcula vetor resultante
         total_vector = [0, 0]
         for player_id, card in self.cards_played.items():
             vector = card.get_vector()
             total_vector[0] += vector[0]
             total_vector[1] += vector[1]
-            
-            # Retorna carta ao baralho
-            self.deck.return_card(card)
         
-        # Move todos os peixes
-        fish_out_of_bounds = []
-        
-        for fish in self.fish_list:
-            old_x, old_y = fish.get_position()
-            new_x = old_x + total_vector[0]
-            new_y = old_y + total_vector[1]
-            
-            # Remove do tabuleiro atual
-            self.board.remove_object(old_x, old_y)
-            
-            # Verifica se saiu do tabuleiro
-            if not self.board.is_valid_position(new_x, new_y):
-                fish_out_of_bounds.append(fish)
-            else:
-                # Move o peixe
-                fish.set_target_position(new_x, new_y)
-                fish.x = new_x
-                fish.y = new_y
-                self.board.place_object(new_x, new_y, fish)
-        
-        # Remove peixes que saíram
-        for fish in fish_out_of_bounds:
-            self.fish_list.remove(fish)
-        
-        self.fish_to_add += len(fish_out_of_bounds)
+        # Move peixes
+        fish_manager.move_all_fish(total_vector)
         
         # Coleta peixes
         self.collect_fish()
         
-        # Verifica vitória
-        self.check_victory()
-        
-        if not self.winner:
-            # Prepara próximo turno
+        # Próximo turno ou fim de jogo
+        if not self.check_victory():
             self.end_turn()
     
     def collect_fish(self):
-        """Coleta peixes próximos aos barcos"""
-        collected = []
-        
-        for fish in self.fish_list:
-            fish_x, fish_y = fish.get_position()
-            closest_boat = None
+        """Coleta peixes próximos"""
+        for fish in fish_manager.fish_list[:]:
+            fish_pos = fish.get_position()
+            closest_player = None
             closest_distance = float('inf')
             
-            # Encontra o barco mais próximo
             for player in self.players:
                 if player.boat:
-                    boat_x, boat_y = player.boat.get_position()
-                    distance = manhattan_distance((boat_x, boat_y), (fish_x, fish_y))
+                    boat_pos = player.boat.get_position()
+                    distance = manhattan_distance(boat_pos, fish_pos)
                     
                     if distance <= COLLECTION_DISTANCE and distance < closest_distance:
                         closest_distance = distance
-                        closest_boat = player
+                        closest_player = player
             
-            # Coleta o peixe
-            if closest_boat:
-                closest_boat.collect_fish()
-                collected.append(fish)
-                self.board.remove_object(fish_x, fish_y)
-                
-                self.show_message(f"Jogador {closest_boat.id + 1} coletou um peixe! Total: {closest_boat.fish_collected}")
-        
-        # Remove peixes coletados
-        for fish in collected:
-            self.fish_list.remove(fish)
+            if closest_player:
+                closest_player.collect_fish()
+                fish_manager.remove_fish(fish)
+                self.show_message(f"{closest_player.name} coletou um peixe!")
     
     def check_victory(self):
-        """Verifica se algum jogador venceu"""
-        winners = [p for p in self.players if p.is_winner()]
+        """Verifica vitória"""
+        winners = [p for p in self.players if p.fish_collected >= WINNING_FISH_COUNT]
         
         if winners:
-            if len(winners) == 1:
-                self.winner = winners[0]
-                self.show_message(f"Jogador {self.winner.id + 1} ({self.winner.name}) venceu!")
-            else:
-                # Empate
-                self.winner = winners
-                winner_names = ", ".join([f"Jogador {w.id + 1}" for w in winners])
-                self.show_message(f"Empate entre {winner_names}!")
-            
+            self.winner = winners[0] if len(winners) == 1 else winners
             self.phase = 'game_over'
+            return True
+        return False
     
     def end_turn(self):
-        """Finaliza o turno"""
-        # Atualiza jogadores
+        """Finaliza turno"""
         for player in self.players:
             player.end_turn()
         
-        # Passa o marcador de início
         self.start_player_token = (self.start_player_token + 1) % len(self.players)
-        
-        # Próximo turno
         self.turn_number += 1
+        self.cards_played.clear()
         self.start_turn()
     
     def show_message(self, message):
-        """Mostra uma mensagem temporária"""
+        """Mostra mensagem temporária"""
         self.ui_message = message
         self.ui_message_timer = 3.0
     
     def update(self, dt):
         """Atualiza o jogo"""
+        # Atualiza responsividade
+        screen_size = self.screen.get_size()
+        layout_manager.update_screen_size(screen_size[0], screen_size[1])
+        
         # Atualiza timer de mensagem
         if self.ui_message_timer > 0:
             self.ui_message_timer -= dt
         
         # Atualiza componentes
         self.board.update(dt)
+        fish_manager.update(dt)
         
         for player in self.players:
-            player.update(dt)
+            if hasattr(player, 'update'):
+                player.update(dt)
         
-        for fish in self.fish_list:
-            fish.update(dt)
+        # Atualiza mãos de cartas
+        mouse_pos = pygame.mouse.get_pos()
+        for hand in self.card_hands.values():
+            hand.update(dt, mouse_pos)
         
         # Atualiza IA
         current_player = self.players[self.current_player_index]
-        
-        if current_player.is_ai and self.phase in ['play_cards', 'movement']:
-            game_state = self.get_game_state()
-            current_player.ai_controller.update(dt, game_state, self.phase)
-            
-            # Verifica se a IA tomou decisão
-            if self.phase == 'play_cards':
-                if current_player.ai_controller.card_ai.decision_made and not current_player.has_played_card:
-                    card = current_player.ai_controller.choose_card(game_state)
-                    if card:
-                        self.play_card(current_player, card)
-                        self.next_card_player()
-            
-            elif self.phase == 'movement':
-                if current_player.ai_controller.movement_ai.decision_made and not current_player.has_moved:
-                    move = current_player.ai_controller.choose_move(game_state)
-                    if move:
-                        self.move_player_boat(current_player, move[0], move[1])
-                    else:
-                        # IA pula o movimento
-                        current_player.has_moved = True
-                        self.next_movement_player()
-        
-        # Atualiza mouse para hover nas cartas
-        if not current_player.is_ai and self.phase == 'play_cards':
-            mouse_pos = pygame.mouse.get_pos()
-            current_player.hand.update(mouse_pos)
-    
-    def get_game_state(self):
-        """Retorna o estado atual do jogo para a IA"""
-        current_player = self.players[self.current_player_index]
-        
-        # Posições dos peixes
-        fish_positions = [fish.get_position() for fish in self.fish_list]
-        
-        # Outros barcos
-        other_boats = [p.boat for p in self.players if p.boat and p != current_player]
-        
-        # Movimentos válidos
-        valid_moves = []
-        if current_player.boat and self.phase == 'movement':
-            boat_x, boat_y = current_player.boat.get_position()
-            valid_moves = self.board.get_valid_moves(boat_x, boat_y, current_player.boat.moves_remaining)
-        
-        # Posições previstas dos peixes (após movimento)
-        predicted_fish = []
-        if self.cards_played:
-            total_vector = [0, 0]
-            for card in self.cards_played.values():
-                vector = card.get_vector()
-                total_vector[0] += vector[0]
-                total_vector[1] += vector[1]
-            
-            for fish_pos in fish_positions:
-                new_pos = (fish_pos[0] + total_vector[0], fish_pos[1] + total_vector[1])
-                if self.board.is_valid_position(new_pos[0], new_pos[1]):
-                    predicted_fish.append(new_pos)
-        
-        return {
-            'fish_positions': fish_positions,
-            'other_boats': other_boats,
-            'valid_moves': valid_moves,
-            'predicted_fish_positions': predicted_fish,
-            'cards_played': self.cards_played,
-            'turn_number': self.turn_number
-        }
+        if current_player.is_ai and hasattr(current_player, 'ai_controller'):
+            # TODO: Implementar lógica de IA
+            pass
     
     def draw(self):
-        """Desenha o jogo"""
-        # Fundo
+        """Desenha o jogo com UI responsiva"""
+        # Limpa tela
         self.screen.fill(COLORS['BACKGROUND'])
         
-        # Tabuleiro
+        # Desenha tabuleiro
         self.board.draw(self.screen)
         
-        # Peixes
-        for fish in self.fish_list:
-            fish.draw(self.screen)
+        # Desenha peixes
+        fish_manager.draw(self.screen)
         
-        # Barcos
+        # Desenha barcos
         for player in self.players:
             if player.boat:
                 player.boat.draw(self.screen)
         
-        # UI - Informações do jogo
-        info_x = BOARD_OFFSET_X + BOARD_SIZE * CELL_SIZE + 50
-        info_y = BOARD_OFFSET_Y
+        # Desenha UI responsiva
+        self.draw_responsive_ui()
+        
+        # Desenha cartas
+        self.draw_cards()
+        
+        # Desenha mensagens
+        self.draw_messages()
+    
+    def draw_responsive_ui(self):
+        """Desenha interface responsiva"""
+        areas = self.get_ui_areas()
+        info_area = areas['info']
+        
+        # Fundo da UI
+        ui_bg = pygame.Rect(info_area['x'], info_area['y'], 
+                           info_area['width'], info_area['height'])
+        pygame.draw.rect(self.screen, (30, 60, 90), ui_bg)
+        pygame.draw.rect(self.screen, COLORS['WHITE'], ui_bg, 2)
         
         # Título
-        draw_text(self.screen, "CAÇADOR DOS MARES", info_x, info_y, 
-                 size=32, color=COLORS['WHITE'])
+        font_size = layout_manager.get_font_size(32)
+        draw_text(self.screen, "CAÇADOR DOS MARES", 
+                 info_area['x'] + 20, info_area['y'] + 20,
+                 size=font_size, color=COLORS['WHITE'])
         
         # Turno
-        draw_text(self.screen, f"Turno: {self.turn_number}", info_x, info_y + 50,
-                 size=24, color=COLORS['WHITE'])
+        font_size = layout_manager.get_font_size(24)
+        draw_text(self.screen, f"Turno: {self.turn_number}", 
+                 info_area['x'] + 20, info_area['y'] + 60,
+                 size=font_size, color=COLORS['WHITE'])
         
         # Fase
-        phase_text = {
-            'placement': 'Posicionamento',
+        phase_names = {
+            'setup': 'Posicionamento',
             'preparation': 'Preparação',
             'play_cards': 'Jogar Cartas',
             'movement': 'Movimento',
             'resolution': 'Resolução',
             'game_over': 'Fim de Jogo'
         }
-        draw_text(self.screen, f"Fase: {phase_text.get(self.phase, self.phase)}", 
-                 info_x, info_y + 80, size=20, color=COLORS['YELLOW'])
         
-        # Jogadores
-        draw_text(self.screen, "Jogadores:", info_x, info_y + 120, 
-                 size=24, color=COLORS['WHITE'])
+        phase_text = phase_names.get(self.phase, self.phase)
+        font_size = layout_manager.get_font_size(20)
+        draw_text(self.screen, f"Fase: {phase_text}", 
+                 info_area['x'] + 20, info_area['y'] + 90,
+                 size=font_size, color=COLORS['YELLOW'])
         
+        # Informações dos jogadores
+        y_offset = 130
         for i, player in enumerate(self.players):
-            y_pos = info_y + 150 + i * 80
+            is_current = (i == self.current_player_index)
+            color = player.color if not is_current else COLORS['YELLOW']
             
-            # Fundo do jogador
-            player_rect = pygame.Rect(info_x - 10, y_pos - 5, 300, 70)
-            if i == self.current_player_index and self.phase != 'game_over':
-                pygame.draw.rect(self.screen, (50, 50, 100), player_rect)
-            pygame.draw.rect(self.screen, player.color, player_rect, 3)
-            
-            # Nome
-            name_text = f"{player.name}"
-            if player.is_ai:
-                name_text += " (IA)"
-            draw_text(self.screen, name_text, info_x, y_pos,
-                     size=20, color=player.color)
-            
-            # Peixes coletados
-            draw_text(self.screen, f"Peixes: {player.fish_collected}/{WINNING_FISH_COUNT}",
-                     info_x, y_pos + 25, size=18, color=COLORS['WHITE'])
-            
-            # Movimentos restantes
-            if player.boat:
-                draw_text(self.screen, f"Movimentos: {player.boat.moves_remaining}",
-                         info_x + 150, y_pos + 25, size=18, color=COLORS['WHITE'])
+            player_text = f"{player.name}: {player.fish_collected} peixes"
+            font_size = layout_manager.get_font_size(18)
+            draw_text(self.screen, player_text,
+                     info_area['x'] + 20, info_area['y'] + y_offset,
+                     size=font_size, color=color)
+            y_offset += 30
+    
+    def draw_cards(self):
+        """Desenha cartas na parte inferior"""
+        areas = self.get_ui_areas()
+        card_area = areas['cards']
         
-        # Cartas (apenas para jogadores humanos ou na fase de resolução)
-        if self.phase == 'play_cards':
-            current_player = self.players[self.current_player_index]
-            if not current_player.is_ai:
-                current_player.draw_hand(self.screen, 50, WINDOW_HEIGHT - 180, True)
-        
-        elif self.phase == 'resolution':
-            # Mostra todas as cartas jogadas
-            draw_text(self.screen, "Cartas Jogadas:", 50, WINDOW_HEIGHT - 200,
-                     size=24, color=COLORS['WHITE'])
+        # Desenha mão do jogador atual se for humano
+        current_player = self.players[self.current_player_index]
+        if not current_player.is_ai and self.current_player_index in self.card_hands:
+            hand = self.card_hands[self.current_player_index]
             
-            x_offset = 50
-            for player_id, card in self.cards_played.items():
-                card.set_position(x_offset, WINDOW_HEIGHT - 170)
-                card.draw(self.screen, face_up=True)
-                
-                # Nome do jogador
-                player_name = self.players[player_id].name
-                draw_text(self.screen, player_name, x_offset + 40, WINDOW_HEIGHT - 40,
-                         size=16, color=self.players[player_id].color, center=True)
-                
-                x_offset += 100
-        
-        # Mensagem
+            # Posição centralizada na área de cartas
+            center_x = card_area['x'] + card_area['width'] // 2
+            center_y = card_area['y'] + card_area['height'] // 2
+            
+            hand.draw(self.screen, center_x, center_y)
+    
+    def draw_messages(self):
+        """Desenha mensagens temporárias"""
         if self.ui_message and self.ui_message_timer > 0:
-            # Fundo da mensagem
-            msg_rect = pygame.Rect(WINDOW_WIDTH // 2 - 300, 10, 600, 50)
-            pygame.draw.rect(self.screen, (30, 30, 50), msg_rect)
-            pygame.draw.rect(self.screen, COLORS['WHITE'], msg_rect, 2)
+            screen_width, screen_height = self.screen.get_size()
             
-            draw_text(self.screen, self.ui_message, WINDOW_WIDTH // 2, 35,
-                     size=24, color=COLORS['WHITE'], center=True)
-        
-        # Tela de fim de jogo
-        if self.phase == 'game_over':
-            # Overlay
-            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-            overlay.set_alpha(200)
-            overlay.fill((0, 0, 0))
-            self.screen.blit(overlay, (0, 0))
+            # Posição centralizada
+            font_size = layout_manager.get_font_size(24)
             
-            # Mensagem de vitória
-            if isinstance(self.winner, list):
-                draw_text(self.screen, "EMPATE!", WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 100,
-                         size=64, color=COLORS['YELLOW'], center=True)
-            else:
-                draw_text(self.screen, "VITÓRIA!", WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 100,
-                         size=64, color=COLORS['YELLOW'], center=True)
-                draw_text(self.screen, f"{self.winner.name}", WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 30,
-                         size=48, color=self.winner.color, center=True)
+            # Calcula alpha baseado no tempo restante
+            alpha = min(255, int(255 * self.ui_message_timer / 3.0))
             
-            # Estatísticas
-            y_offset = WINDOW_HEIGHT // 2 + 50
-            for player in self.players:
-                stats = player.get_stats()
-                stats_text = f"{stats['name']}: {stats['fish_collected']} peixes, {stats['turns_played']} turnos"
-                draw_text(self.screen, stats_text, WINDOW_WIDTH // 2, y_offset,
-                         size=24, color=player.color, center=True)
-                y_offset += 40
+            # Desenha fundo semi-transparente
+            font = pygame.font.Font(None, font_size)
+            text_surface = font.render(self.ui_message, True, COLORS['WHITE'])
+            text_rect = text_surface.get_rect()
+            text_rect.centerx = screen_width // 2
+            text_rect.centery = screen_height // 4
             
-            # Instruções
-            draw_text(self.screen, "Pressione ESC para voltar ao menu", 
-                     WINDOW_WIDTH // 2, WINDOW_HEIGHT - 50,
-                     size=20, color=COLORS['WHITE'], center=True)
+            # Fundo
+            bg_rect = text_rect.inflate(40, 20)
+            bg_surface = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            bg_surface.set_alpha(alpha // 2)
+            bg_surface.fill((0, 0, 0))
+            
+            self.screen.blit(bg_surface, bg_rect)
+            
+            # Texto com transparência
+            text_surface.set_alpha(alpha)
+            self.screen.blit(text_surface, text_rect)

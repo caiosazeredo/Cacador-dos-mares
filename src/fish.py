@@ -1,211 +1,204 @@
-# src/fish.py - Classe dos peixes com sprites
+# src/fish.py - Peixes responsivos
 
 import pygame
 import random
 import math
 from config import *
-from src.utils import board_to_screen, lerp
+from src.layout_manager import layout_manager
 
 class Fish:
-    """Classe que representa um peixe no jogo"""
+    """Peixe com posicionamento responsivo"""
     
-    # Cores dos diferentes tipos de peixes
-    FISH_TYPES = [
-        {'color': (255, 165, 0), 'name': 'Dourado', 'sprite': 'fish_orange'},     # Laranja
-        {'color': (255, 192, 203), 'name': 'Rosa', 'sprite': 'fish_pink'},       # Rosa
-        {'color': (135, 206, 250), 'name': 'Azul', 'sprite': 'fish_blue'},       # Azul claro
-        {'color': (152, 251, 152), 'name': 'Verde', 'sprite': 'fish_green'},     # Verde claro
-        {'color': (128, 128, 128), 'name': 'Cinza', 'sprite': 'fish_grey'},      # Cinza
-        {'color': (139, 69, 19), 'name': 'Marrom', 'sprite': 'fish_brown'},      # Marrom
-    ]
-    
-    def __init__(self, x, y, fish_type=None):
+    def __init__(self, x, y, fish_type='blue'):
         self.x = x
         self.y = y
-        
-        # Tipo de peixe
-        if fish_type is None:
-            self.type = random.choice(self.FISH_TYPES)
-        else:
-            self.type = self.FISH_TYPES[fish_type % len(self.FISH_TYPES)]
-        
-        # Visual
-        self.size = 30  # Tamanho base para sprites
-        self.color = self.type['color']
-        self.sprite_name = self.type['sprite']
-        
-        # Animação
-        self.animation_offset = random.uniform(0, math.pi * 2)
-        self.animation_speed = random.uniform(2, 4)
-        self.scale = 1.0
-        
-        # Movimento
         self.target_x = x
         self.target_y = y
-        self.moving = False
-        self.move_progress = 0
-        self.move_speed = 3  # Velocidade da animação de movimento
+        self.visual_x = float(x)
+        self.visual_y = float(y)
+        self.fish_type = fish_type
         
-        # Posição visual (para animação suave)
-        self.visual_x = x
-        self.visual_y = y
+        # Animação
+        self.is_moving = False
+        self.move_progress = 0
+        self.move_speed = 2.0
+        self.bob_offset = random.uniform(0, math.pi * 2)
+        self.bob_speed = 3.0
         
         # Sprite
         self.sprite = None
         self.load_sprite()
-        
+    
     def load_sprite(self):
-        """Carrega o sprite do peixe"""
+        """Carrega sprite do peixe"""
         try:
             from src.sprite_loader import get_sprite_manager
             sprite_manager = get_sprite_manager()
-            self.sprite = sprite_manager.get_sprite(self.sprite_name)
-            
-            # Tenta variações do nome se não encontrar
-            if not self.sprite:
-                # Tenta sem a extensão
-                base_name = self.sprite_name.replace('.png', '')
-                self.sprite = sprite_manager.get_sprite(base_name)
-                
-            # Se ainda não encontrou, usa fallback
-            if not self.sprite:
-                print(f"Sprite não encontrado: {self.sprite_name}, usando fallback")
-                # Cria um sprite simples como fallback
-                self.sprite = self.create_fallback_sprite()
-                
+            if sprite_manager:
+                sprite_name = f"fish_{self.fish_type}"
+                self.sprite = sprite_manager.get_sprite(sprite_name)
         except Exception as e:
             print(f"Erro ao carregar sprite do peixe: {e}")
-            self.sprite = self.create_fallback_sprite()
+            self.sprite = None
     
-    def create_fallback_sprite(self):
-        """Cria um sprite simples como fallback"""
-        size = 32
-        surface = pygame.Surface((size, size), pygame.SRCALPHA)
-        
-        # Corpo do peixe
-        body_rect = pygame.Rect(4, 8, size-12, size//2)
-        pygame.draw.ellipse(surface, self.color, body_rect)
-        pygame.draw.ellipse(surface, (0, 0, 0), body_rect, 1)
-        
-        # Cauda
-        tail_points = [
-            (4, size//2),
-            (0, size//3),
-            (0, 2*size//3)
-        ]
-        pygame.draw.polygon(surface, self.color, tail_points)
-        pygame.draw.polygon(surface, (0, 0, 0), tail_points, 1)
-        
-        # Olho
-        eye_center = (size-8, size//2-2)
-        pygame.draw.circle(surface, (255, 255, 255), eye_center, 3)
-        pygame.draw.circle(surface, (0, 0, 0), eye_center, 2)
-        
-        return surface
-        
     def set_target_position(self, x, y):
-        """Define a posição alvo para movimento"""
+        """Define posição alvo para movimento"""
         self.target_x = x
         self.target_y = y
-        self.moving = True
+        self.is_moving = True
         self.move_progress = 0
-        
+    
+    def get_position(self):
+        """Retorna posição atual do peixe"""
+        return (self.x, self.y)
+    
+    def get_screen_position(self):
+        """Retorna posição na tela com layout responsivo"""
+        return layout_manager.get_scaled_board_coordinates(
+            int(self.visual_x), int(self.visual_y)
+        )
+    
     def update(self, dt):
-        """Atualiza o peixe"""
+        """Atualiza animações do peixe"""
         # Animação de balanço
-        self.animation_offset += self.animation_speed * dt
+        self.bob_offset += self.bob_speed * dt
         
         # Movimento suave
-        if self.moving:
+        if self.is_moving:
             self.move_progress += self.move_speed * dt
             
             if self.move_progress >= 1.0:
                 # Movimento completo
                 self.x = self.target_x
                 self.y = self.target_y
-                self.visual_x = self.x
-                self.visual_y = self.y
-                self.moving = False
+                self.visual_x = float(self.x)
+                self.visual_y = float(self.y)
+                self.is_moving = False
                 self.move_progress = 1.0
             else:
-                # Interpolação
-                self.visual_x = lerp(self.x, self.target_x, self.move_progress)
-                self.visual_y = lerp(self.y, self.target_y, self.move_progress)
+                # Interpolação suave
+                self.visual_x = self.x + (self.target_x - self.x) * self.move_progress
+                self.visual_y = self.y + (self.target_y - self.y) * self.move_progress
     
-    def get_position(self):
-        """Retorna a posição lógica do peixe"""
-        return (self.x, self.y)
-    
-    def draw(self, screen):
-        """Desenha o peixe"""
-        # Posição na tela
-        screen_x, screen_y = board_to_screen(self.visual_x, self.visual_y)
+    def draw(self, surface):
+        """Desenha o peixe na tela com posicionamento responsivo"""
+        screen_x, screen_y = self.get_screen_position()
         
         # Efeito de balanço
-        wobble = math.sin(self.animation_offset) * 2
-        screen_y += wobble
+        wobble_x = math.sin(self.bob_offset) * 2
+        wobble_y = math.cos(self.bob_offset * 1.3) * 1
         
-        # Escala com animação
-        if self.moving:
-            # Efeito de "pulo" durante movimento
-            jump_scale = 1.0 + 0.2 * math.sin(self.move_progress * math.pi)
-            current_scale = self.scale * jump_scale
-        else:
-            current_scale = self.scale
+        final_x = screen_x + wobble_x
+        final_y = screen_y + wobble_y
         
         if self.sprite:
-            # Desenha usando sprite
-            sprite_rect = self.sprite.get_rect()
+            # Escala sprite baseado no tamanho da célula
+            sprite_size = layout_manager.get_sprite_size(64)
             
-            # Aplica escala se necessário
-            if current_scale != 1.0:
-                new_size = (int(sprite_rect.width * current_scale), 
-                           int(sprite_rect.height * current_scale))
-                scaled_sprite = pygame.transform.scale(self.sprite, new_size)
-                sprite_rect = scaled_sprite.get_rect()
-                sprite_rect.center = (screen_x, screen_y)
-                screen.blit(scaled_sprite, sprite_rect)
+            if self.sprite.get_size() != (sprite_size, sprite_size):
+                scaled_sprite = pygame.transform.scale(self.sprite, (sprite_size, sprite_size))
             else:
-                sprite_rect.center = (screen_x, screen_y)
-                screen.blit(self.sprite, sprite_rect)
+                scaled_sprite = self.sprite
+            
+            sprite_rect = scaled_sprite.get_rect()
+            sprite_rect.center = (int(final_x), int(final_y))
+            
+            surface.blit(scaled_sprite, sprite_rect)
         else:
-            # Fallback para desenho manual se não tiver sprite
-            self.draw_manual(screen, screen_x, screen_y, current_scale)
+            # Fallback para desenho manual
+            self.draw_manual(surface, final_x, final_y)
     
-    def draw_manual(self, screen, screen_x, screen_y, current_scale):
-        """Desenha o peixe manualmente como fallback"""
-        fish_size = int(self.size * current_scale)
+    def draw_manual(self, surface, x, y):
+        """Desenha peixe manualmente como fallback"""
+        size = layout_manager.get_sprite_size(32)
         
-        # Corpo principal (elipse)
-        body_rect = pygame.Rect(0, 0, fish_size, int(fish_size * 0.6))
-        body_rect.center = (screen_x, screen_y)
-        pygame.draw.ellipse(screen, self.color, body_rect)
-        pygame.draw.ellipse(screen, COLORS['BLACK'], body_rect, 1)
+        # Cores dos peixes
+        colors = {
+            'blue': (0, 100, 255),
+            'orange': (255, 165, 0),
+            'green': (0, 255, 100),
+            'pink': (255, 100, 150),
+            'brown': (139, 69, 19),
+            'grey': (128, 128, 128)
+        }
+        
+        fish_color = colors.get(self.fish_type, (100, 100, 100))
+        
+        # Corpo do peixe
+        body_rect = pygame.Rect(int(x - size//2), int(y - size//4), size, size//2)
+        pygame.draw.ellipse(surface, fish_color, body_rect)
+        pygame.draw.ellipse(surface, COLORS['BLACK'], body_rect, 2)
         
         # Cauda
-        tail_size = int(fish_size * 0.4)
         tail_points = [
-            (screen_x - fish_size // 2, screen_y),
-            (screen_x - fish_size // 2 - tail_size, screen_y - tail_size // 2),
-            (screen_x - fish_size // 2 - tail_size, screen_y + tail_size // 2)
+            (int(x - size//2), int(y)),
+            (int(x - size), int(y - size//4)),
+            (int(x - size), int(y + size//4))
         ]
-        pygame.draw.polygon(screen, self.color, tail_points)
-        pygame.draw.polygon(screen, COLORS['BLACK'], tail_points, 1)
+        pygame.draw.polygon(surface, fish_color, tail_points)
+        pygame.draw.polygon(surface, COLORS['BLACK'], tail_points, 2)
         
         # Olho
-        eye_x = screen_x + fish_size // 4
-        eye_y = screen_y - 2
-        pygame.draw.circle(screen, COLORS['WHITE'], (eye_x, eye_y), 3)
-        pygame.draw.circle(screen, COLORS['BLACK'], (eye_x, eye_y), 2)
-        
-        # Barbatana
-        fin_points = [
-            (screen_x, screen_y - fish_size // 3),
-            (screen_x - fish_size // 6, screen_y - fish_size // 2),
-            (screen_x + fish_size // 6, screen_y - fish_size // 2)
-        ]
-        pygame.draw.polygon(screen, self.color, fin_points)
-        pygame.draw.polygon(screen, COLORS['BLACK'], fin_points, 1)
+        eye_x = int(x + size//4)
+        eye_y = int(y - size//8)
+        pygame.draw.circle(surface, COLORS['WHITE'], (eye_x, eye_y), size//8)
+        pygame.draw.circle(surface, COLORS['BLACK'], (eye_x, eye_y), size//12)
+
+class FishManager:
+    """Gerenciador de peixes responsivo"""
     
-    def __repr__(self):
-        return f"Fish({self.x}, {self.y}, {self.type['name']})"
+    def __init__(self):
+        self.fish_list = []
+        self.fish_types = ['blue', 'orange', 'green', 'pink', 'brown', 'grey']
+    
+    def add_fish(self, x, y, fish_type=None):
+        """Adiciona um peixe na posição especificada"""
+        if fish_type is None:
+            fish_type = random.choice(self.fish_types)
+        
+        fish = Fish(x, y, fish_type)
+        self.fish_list.append(fish)
+        return fish
+    
+    def remove_fish(self, fish):
+        """Remove um peixe"""
+        if fish in self.fish_list:
+            self.fish_list.remove(fish)
+    
+    def get_fish_at(self, x, y):
+        """Retorna peixe na posição especificada"""
+        for fish in self.fish_list:
+            fish_x, fish_y = fish.get_position()
+            if fish_x == x and fish_y == y:
+                return fish
+        return None
+    
+    def move_all_fish(self, vector):
+        """Move todos os peixes pelo vetor especificado"""
+        for fish in self.fish_list[:]:  # Cópia da lista
+            current_x, current_y = fish.get_position()
+            new_x = current_x + vector[0]
+            new_y = current_y + vector[1]
+            
+            # Remove peixes que saem do tabuleiro
+            if not (0 <= new_x < BOARD_SIZE and 0 <= new_y < BOARD_SIZE):
+                self.remove_fish(fish)
+            else:
+                fish.set_target_position(new_x, new_y)
+    
+    def update(self, dt):
+        """Atualiza todos os peixes"""
+        for fish in self.fish_list:
+            fish.update(dt)
+    
+    def draw(self, surface):
+        """Desenha todos os peixes"""
+        for fish in self.fish_list:
+            fish.draw(surface)
+    
+    def get_all_positions(self):
+        """Retorna posições de todos os peixes"""
+        return [fish.get_position() for fish in self.fish_list]
+
+# Instância global
+fish_manager = FishManager()
